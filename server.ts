@@ -1,5 +1,8 @@
 import { serve } from "https://deno.land/std@0.74.0/http/server.ts";
 import { isUrlAllowed } from "./helpers/allowed-urls-helper.ts";
+import TTL from "https://deno.land/x/ttl/mod.ts";
+
+const ttl = new TTL<any>(3_600_000);
 
 export async function run(
   port: number,
@@ -18,13 +21,21 @@ export async function run(
           req.respond({ status: 403, body: "403 Forbidden" });
           continue;
         }
+        const cached = ttl.get(url);
+        if (cached) {
+          req.respond(cached);
+        }
         const response = await fetch(url);
         const text = await response.text();
         const headers = new Headers();
         headers.set("Access-Control-Allow-Origin", allowedOrigins);
-        req.respond({ body: text, headers });
+        const resp = { body: text, headers };
+        ttl.set(url, resp);
+        req.respond(resp);
       } else {
-        req.respond({ status: 404, body: "404 Not Found" });
+        const resp = { status: 404, body: "404 Not Found" };
+        ttl.set(url, resp);
+        req.respond(resp);
       }
     } catch {
       req.respond({ status: 500, body: "500 Internal Server Error" });
