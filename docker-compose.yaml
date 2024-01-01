@@ -1,0 +1,46 @@
+version: '3.5'
+
+services:
+  nginx:
+    image: nginx
+    container_name: nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    env_file: .env.nginx
+    volumes:
+      - ./nginx:/etc/nginx
+      - ~/.certbot/conf:/etc/letsencrypt
+      - ~/.certbot/www:/var/www/certbot
+    tmpfs:
+      - /etc/nginx/conf.d
+    logging:
+      driver: "json-file"
+      options:
+         max-size: "10m"
+         max-file: "10"
+
+  certbot:
+    image: certbot/certbot
+    container_name: certbot
+    restart: unless-stopped
+    volumes:
+      - ~/.certbot/conf:/etc/letsencrypt
+      - ~/.certbot/www:/var/www/certbot
+      - /var/run/docker.sock:/var/run/docker.sock
+    entrypoint: "/bin/sh -c 'trap exit TERM; apk update && apk add --no-cache docker-cli; while :; do certbot renew; docker exec nginx nginx -s reload; sleep 12h & wait $${!}; done;'"
+
+  server:
+    image: denoland/deno:distroless
+    container_name: server
+    restart: unless-stopped
+    env_file: .env.server
+    command: run --allow-env --allow-net /app/mod.ts --port 3000 -r / --allowed-urls ""
+    logging:
+      driver: "json-file"
+      options:
+         max-size: "10m"
+         max-file: "10"
+    volumes:
+      - .:/app
