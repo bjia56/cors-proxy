@@ -24,6 +24,7 @@ export async function run(
         const cached = ttl.get(url);
         if (cached) {
           req.respond(cached);
+          continue;
         }
         const response = await fetch(url);
         const text = await response.text();
